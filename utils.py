@@ -49,25 +49,26 @@ class GCN_dev(nn.Module):
         h = torch.sigmoid(h)
 
         return h
+        
 
-
-# Generate random graph of specified size and type,
-# with specified degree (d) or edge probability (p)
-def generate_graph(n, d=None, p=None, graph_type='reg', random_seed=0):
+def generate_graph(n, d=None, p=None, graph_type='reg', random_seed=0, weighted=False, weight_range=(0, 1)):
     """
     Helper function to generate a NetworkX random graph of specified type,
-    given specified parameters (e.g. d-regular, d=3). Must provide one of
+    given specified parameters (e.g., d-regular, d=3). Must provide one of
     d or p, d with graph_type='reg', and p with graph_type in ['prob', 'erdos'].
 
     Input:
-        n: Problem size
-        d: [Optional] Degree of each node in graph
-        p: [Optional] Probability of edge between two nodes
-        graph_type: Specifies graph type to generate
-        random_seed: Seed value for random generator
+        n: Problem size (number of nodes)
+        d: [Optional] Degree of each node in graph (for d-regular graphs)
+        p: [Optional] Probability of edge between two nodes (for probabilistic graphs)
+        graph_type: Specifies the type of graph to generate ('reg', 'prob', 'erdos')
+        random_seed: Seed value for random number generator
+        weighted: [Optional] If True, assigns random weights to edges
+        weight_range: [Optional] Tuple specifying the range of weights (default: (1, 10))
     Output:
-        nx_graph: NetworkX OrderedGraph of specified type and parameters
+        nx_graph: NetworkX Graph of specified type and parameters, with optional edge weights
     """
+    random.seed(random_seed)
     if graph_type == 'reg':
         print(f'Generating d-regular graph with n={n}, d={d}, seed={random_seed}')
         nx_temp = nx.random_regular_graph(d=d, n=n, seed=random_seed)
@@ -80,14 +81,21 @@ def generate_graph(n, d=None, p=None, graph_type='reg', random_seed=0):
     else:
         raise NotImplementedError(f'!! Graph type {graph_type} not handled !!')
 
-    # Networkx does not enforce node order by default
+    # Convert node labels to integers if necessary
     nx_temp = nx.relabel.convert_node_labels_to_integers(nx_temp)
-    # Need to pull nx graph into OrderedGraph so training will work properly
-    nx_graph = nx.OrderedGraph()
+    
+    # Create a new graph (Graph instead of OrderedGraph)
+    nx_graph = nx.Graph()
     nx_graph.add_nodes_from(sorted(nx_temp.nodes()))
     nx_graph.add_edges_from(nx_temp.edges)
-    return nx_graph
+    
+    # If the graph should be weighted, add random weights to the edges
+    if weighted:
+        print(f'Assigning random weights to edges in range {weight_range}')
+        for u, v in nx_graph.edges():
+            nx_graph[u][v]['weight'] = random.uniform(*weight_range)
 
+    return nx_graph
 
 # helper function to convert Q dictionary to torch tensor
 def qubo_dict_to_torch(nx_G, Q, torch_dtype=None, torch_device=None):
